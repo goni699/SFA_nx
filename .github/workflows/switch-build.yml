@@ -50,8 +50,9 @@ jobs:
         run: |
           source /etc/profile.d/devkit-env.sh || true
           /opt/devkitpro/portlibs/switch/bin/aarch64-none-elf-cmake \
-            -S . -B build-switch -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            2>&1 | tee configure.log
+          -S . -B build-switch -G Ninja -DCMAKE_BUILD_TYPE=Release \
+          -DDAWN_BUILD_PROTOBUF=OFF \
+          2>&1 | tee configure.log
       - name: Compilar
         shell: bash
         run: |
