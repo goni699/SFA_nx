@@ -1,0 +1,72 @@
+name: Switch build (WIP)
+
+# Plantilla sin probar. Guardar como .github/workflows/switch-build.yml
+# No usa el ISO del juego: Foxhollow lo lee en ejecucion, no en compilacion.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [switch]
+
+jobs:
+  # 1) Comprueba que el repo compila en Linux dentro de Actions.
+  #    Compara los paquetes con .github/workflows/publish.yml del repo.
+  linux-baseline:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Dependencias
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake clang lld pkg-config \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
+            libxi-dev libxkbcommon-dev libwayland-dev wayland-protocols \
+            libegl-dev libgl-dev libvulkan-dev libasound2-dev libpulse-dev \
+            libudev-dev libdbus-1-dev
+      - name: Configurar
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Compilar
+        run: cmake --build build --target foxhollow
+
+  # 2) Primer intento para Switch. Se espera que falle al principio:
+  #    los logs dicen que falta (Dawn/Aurora para Switch, SDL3, nod...).
+  switch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    continue-on-error: true
+    container: devkitpro/devkita64:latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Herramientas
+        run: |
+          apt-get update
+          apt-get install -y ninja-build cmake git python3
+      - name: Configurar
+        shell: bash
+        run: |
+          source /etc/profile.d/devkit-env.sh || true
+          /opt/devkitpro/portlibs/switch/bin/aarch64-none-elf-cmake \
+            -S . -B build-switch -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            2>&1 | tee configure.log
+      - name: Compilar
+        shell: bash
+        run: |
+          source /etc/profile.d/devkit-env.sh || true
+          cmake --build build-switch 2>&1 | tee build.log
+      - name: Subir logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: switch-logs
+          path: "*.log"
+      - name: Subir NRO (si existe)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: switch-nro
+          path: build-switch/**/*.nro
+          if-no-files-found: ignore
